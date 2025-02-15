@@ -1,0 +1,3 @@
+/mnt/c/Study/ParallelProgramming/task1/task1_cmake/build/CMakeFiles/task1.dir
+/mnt/c/Study/ParallelProgramming/task1/task1_cmake/build/CMakeFiles/edit_cache.dir
+/mnt/c/Study/ParallelProgramming/task1/task1_cmake/build/CMakeFiles/rebuild_cache.dir
