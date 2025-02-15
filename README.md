@@ -5,5 +5,5 @@
 3. Enter **./task1 float** to get a **float** value.
 4. Enter **./task1 double** to get a **double** value.
 
-Sum (float): -0.0278693\n
+Sum (float): -0.0278693
 Sum (double): -0.000779278
