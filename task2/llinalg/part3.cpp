@@ -79,7 +79,9 @@ void simpleItFors(const std::vector<std::vector<double>>& A, const std::vector<d
             diff[i] = Ax[i] - b[i];
         }
 
+        #pragma omp single
         L2_norm = 0.0;
+        
         #pragma omp parallel for reduction(+:L2_norm)
         for (int i = 0; i < N; ++i) {
             L2_norm += diff[i] * diff[i];
