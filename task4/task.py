@@ -62,7 +62,7 @@ def run_sensor(sensor, q: queue.Queue, stop_flag, last_data, idx):
         latest_data = sensor.get()
         last_data[idx] = latest_data
         if q.full():
-            q.get_nowait()
+            q.get()
         q.put(latest_data)
         
 def run(cam, sensors, window):
