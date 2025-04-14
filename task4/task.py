@@ -69,7 +69,7 @@ def run(cam, sensors, window):
     queues = [queue.Queue(maxsize=1) for _ in range(len(sensors))]
     threads = []
     stop_flag = threading.Event()
-    last_data = [0,0,0]
+    last_data = [0] * len(sensors)
 
     for i, sensor in enumerate(sensors):
         t = threading.Thread(target=run_sensor, args=(sensor, queues[i], stop_flag, last_data, i))
