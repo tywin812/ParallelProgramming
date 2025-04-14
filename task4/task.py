@@ -65,8 +65,17 @@ def run_sensor(sensor, q: queue.Queue, stop_flag, last_data, idx):
             q.get()
         q.put(latest_data)
         
+def run_camera(cam, cam_queue: queue.Queue, stop_flag):
+    while not stop_flag.is_set():
+        frame = cam.get()
+        if frame is not None:
+            if cam_queue.full():
+                cam_queue.get()
+            cam_queue.put(frame)
+        
 def run(cam, sensors, window):
     queues = [queue.Queue(maxsize=1) for _ in range(len(sensors))]
+    cam_queue = queue.Queue(maxsize=1)
     threads = []
     stop_flag = threading.Event()
     last_data = [0] * len(sensors)
@@ -76,14 +85,18 @@ def run(cam, sensors, window):
         t.start()
         threads.append(t)
 
+    cam_thread = threading.Thread(target=run_camera, args=(cam, cam_queue, stop_flag))
+    cam_thread.start()
+    threads.append(cam_thread)
+    
     try:
         while window.running:
-            frame = cam.get()
+            frame = cam_queue.get()
             sensors_data = [q.get() if not q.empty() else last_data[i] for i, q in enumerate(queues)]
             if frame is not None:
                 for i, data in enumerate(sensors_data):
                     text = f"Sensor {i}: {data}"
-                    cv2.putText(frame, text, (50, 50 + i * 30), cv2.FONT_HERSHEY_SIMPLEX, 1, (0, 255, 0), 2, cv2.LINE_AA)    
+                    cv2.putText(frame, text, (50, 50 + i * 30), cv2.FONT_HERSHEY_SIMPLEX, 1, (255, 0, 0), 2, cv2.LINE_AA)    
                 window.show(frame)
             else:
                 break
@@ -96,7 +109,7 @@ def run(cam, sensors, window):
                  
 if __name__ == "__main__":
     parser = argparse.ArgumentParser()
-    parser.add_argument("--camera", type=str)
+    parser.add_argument("--camera", type=int)
     parser.add_argument("--resolution", type=str, default="1280x720")
     parser.add_argument("--fps", type=int, default=30)
     args = parser.parse_args()
