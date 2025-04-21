@@ -57,54 +57,39 @@ class WindowImage:
     def __del__(self): 
         cv2.destroyAllWindows()
         
-def run_sensor(sensor, q: queue.Queue, stop_flag, last_data, idx):
+def run_sensor(sensor, q: queue.Queue, stop_flag):
     while not stop_flag.is_set():      
         latest_data = sensor.get()
-        last_data[idx] = latest_data
         if q.full():
             q.get()
         q.put(latest_data)
         
-def run_camera(cam, cam_queue: queue.Queue, stop_flag):
-    while not stop_flag.is_set():
-        frame = cam.get()
-        if frame is not None:
-            if cam_queue.full():
-                cam_queue.get()
-            cam_queue.put(frame)
-        
-def run(cam, sensors, window):
+def run(sensors, window):
     queues = [queue.Queue(maxsize=1) for _ in range(len(sensors))]
-    cam_queue = queue.Queue(maxsize=1)
     threads = []
     stop_flag = threading.Event()
-    last_data = [0] * len(sensors)
-
+    sensors_data= [0] * len(sensors)
+    print(len(sensors_data))
     for i, sensor in enumerate(sensors):
-        t = threading.Thread(target=run_sensor, args=(sensor, queues[i], stop_flag, last_data, i))
+        t = threading.Thread(target=run_sensor, args=(sensor, queues[i], stop_flag))
         t.start()
         threads.append(t)
-
-    cam_thread = threading.Thread(target=run_camera, args=(cam, cam_queue, stop_flag))
-    cam_thread.start()
-    threads.append(cam_thread)
     
     try:
         while window.running:
-            frame = cam_queue.get()
-            sensors_data = [q.get() if not q.empty() else last_data[i] for i, q in enumerate(queues)]
-            if frame is not None:
-                for i, data in enumerate(sensors_data):
-                    text = f"Sensor {i}: {data}"
-                    cv2.putText(frame, text, (50, 50 + i * 30), cv2.FONT_HERSHEY_SIMPLEX, 1, (255, 0, 0), 2, cv2.LINE_AA)    
-                window.show(frame)
+            sensors_data = [q.get() if not q.empty() else sensors_data[i] for i, q in enumerate(queues)]   
+            if sensors_data[3] is not None:
+                for i in range(3):
+                    text = f"Sensor {i}: {sensors_data[i]}"
+                    cv2.putText(sensors_data[3], text, (50, 50 + i * 30), cv2.FONT_HERSHEY_SIMPLEX, 1, (255, 0, 0), 2, cv2.LINE_AA)    
+                window.show(sensors_data[3])
             else:
                 break
     finally:
         stop_flag.set()
         for t in threads:
             t.join()
-        del cam
+        del sensors[3]
         del window
                  
 if __name__ == "__main__":
@@ -117,7 +102,6 @@ if __name__ == "__main__":
     logging.basicConfig(level=logging.ERROR, filename="./log/logs.log", filemode="w")
 
     width, height = map(int, args.resolution.split('x'))
-    camera = SensorCam(cam=args.camera, imgsz=(width, height))
-    sensors = [SensorX(delay=0.01), SensorX(delay=0.1), SensorX(delay=1.0)]
+    sensors = [SensorX(delay=0.01), SensorX(delay=0.1), SensorX(delay=1.0), SensorCam(cam=args.camera, imgsz=(width, height))]
     window = WindowImage(delay=int(1000/args.fps))
-    run(camera, sensors, window)
+    run(sensors, window)
