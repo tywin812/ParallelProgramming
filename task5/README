@@ -1,0 +1,5 @@
+Single thread: 22.35s 
+2 threads: 16.10s
+4 threads: 17.10s
+6 threads: 19.32s 
+8 threads: 20.67s
