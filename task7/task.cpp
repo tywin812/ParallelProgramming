@@ -26,13 +26,12 @@ void initialize_boundaries(double* x, int N) {
 
 void solve(int N, double epsilon, int max_iter) {
     double* x = new double[N * N]();
-    double* x_new = new double[N * N]();
     initialize_boundaries(x, N);
 
     double *d_x, *d_x_new, *d_diff;
     cudaMalloc((void**)&d_x, N * N * sizeof(double));
     cudaMalloc((void**)&d_x_new, N * N * sizeof(double));
-    cudaMalloc((void**)&d_diff, N * N * sizeof(double));
+    cudaMalloc((void**)&d_diff, (N-2) * (N-2) * sizeof(double));
     cudaMemcpy(d_x, x, N * N * sizeof(double), cudaMemcpyHostToDevice);
 
     cublasHandle_t handle;
@@ -47,25 +46,24 @@ void solve(int N, double epsilon, int max_iter) {
         do {
             residual = 0.0;
 
-            #pragma acc parallel loop collapse(2) present(d_x, d_x_new)
+            #pragma acc parallel loop collapse(2) present(d_x, d_x_new, d_diff)
             for (int i = 1; i < N - 1; ++i) {
                 for (int j = 1; j < N - 1; ++j) {
                     int idx = i * N + j;
                     d_x_new[idx] = 0.25 * (d_x[(i - 1) * N + j] + d_x[(i + 1) * N + j] +
                                            d_x[i * N + (j - 1)] + d_x[i * N + (j + 1)]);
+                    
+                    d_diff[idx] = std::fabs(d_x_new[idx] - d_x[idx]);
                 }
             }
 
-            #pragma acc parallel loop collapse(2) present(d_x, d_x_new, d_diff)
-            for (int i = 1; i < N - 1; ++i) {
-                for (int j = 1; j < N - 1; ++j) {
-                    int idx = i * N + j;
-                    double diff = d_x_new[idx] - d_x[idx];
-                    d_diff[idx] = diff * diff;
-                }
-            }
+            int max_idx = 0;
+            cublasIdamax(handle, (N-2) * (N-2), d_diff, 1, &max_idx);
+            max_idx -= 1; 
 
-            cublasDnrm2(handle, (N-2) * (N-2), d_diff, 1, &residual);
+            double max_error = 0.0;
+            cudaMemcpy(&max_error, &d_diff[max_idx], sizeof(double), cudaMemcpyDeviceToHost);
+            residual = max_error;
 
             #pragma acc parallel loop collapse(2) present(d_x, d_x_new)
             for (int i = 1; i < N - 1; ++i) {
@@ -87,7 +85,7 @@ void solve(int N, double epsilon, int max_iter) {
     cudaFree(d_x_new);
     cudaFree(d_diff);
     cublasDestroy(handle);
-    
+
     std::chrono::duration<double> elapsed = end - start;
     std::cout << "Iterations: " << iter << ", Residual: " << residual
               << ", Time: " << elapsed.count() << " s\n";
@@ -103,7 +101,6 @@ void solve(int N, double epsilon, int max_iter) {
     }
 
     delete[] x;
-    delete[] x_new;
 }
 
 int main(int argc, char* argv[]) {
