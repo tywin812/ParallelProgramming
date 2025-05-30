@@ -9,7 +9,6 @@
 
 namespace po = boost::program_options;
 
-#define BLOCK_THREADS 512
 #define CHECK_INTERVAL 1000
 
 void initialize_boundaries(double* x, int N) {
@@ -50,10 +49,10 @@ __global__ void copy_kernel(double* d_x, double* d_x_new, int N) {
 }
 
 __global__ void block_max_kernel(double* d_input, int total, double* d_output, int num_blocks) {
-    typedef cub::BlockReduce<double, BLOCK_THREADS> BlockReduce;
+    typedef cub::BlockReduce<double, 512> BlockReduce;
     __shared__ typename BlockReduce::TempStorage temp_storage;
     BlockReduce reduce_inst(temp_storage);
-    int idx = threadIdx.x + blockIdx.x * BLOCK_THREADS;
+    int idx = threadIdx.x + blockIdx.x * 512;
     double val = (idx < total) ? d_input[idx] : -__builtin_inf();
     double block_max = reduce_inst.Reduce(val, cub::Max());
     if (threadIdx.x == 0) {
@@ -80,7 +79,7 @@ void solve(int N, double epsilon, int max_iter) {
     std::vector<int> temp_sizes;
     int current_size = total;
     while (current_size > 1) {
-        int num_blocks = (current_size + BLOCK_THREADS - 1) / BLOCK_THREADS;
+        int num_blocks = (current_size + 512) / 512;
         temp_sizes.push_back(num_blocks);
         current_size = num_blocks;
     }
@@ -97,7 +96,7 @@ void solve(int N, double epsilon, int max_iter) {
         offset += temp_sizes[i];
     }
 
-    dim3 block_update(16, 16);
+    dim3 block_update(32, 16);
     dim3 grid_update((N-2 + block_update.x - 1) / block_update.x, (N-2 + block_update.y - 1) / block_update.y);
 
     cudaGraph_t graph;
@@ -115,7 +114,7 @@ void solve(int N, double epsilon, int max_iter) {
     nvtxRangePushA("block_max_kernel_reduction");
     for (size_t i = 0; i < temp_sizes.size(); ++i) {
         int num_blocks = temp_sizes[i];
-        block_max_kernel<<<num_blocks, BLOCK_THREADS, 0, stream>>>(current_array, current_size, temp_arrays[i], num_blocks);
+        block_max_kernel<<<num_blocks, 512, 0, stream>>>(current_array, current_size, temp_arrays[i], num_blocks);
         current_array = temp_arrays[i];
         current_size = num_blocks;
     }
